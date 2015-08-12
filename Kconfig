@@ -1,0 +1,138 @@
+##
+## This file is part of the greenfield project.
+##
+## Copyright (C) 2015 Anthony Green <green@redhat.com>
+##
+## This program is free software; you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation; version 2 of the License.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program; if not, write to the Free Software
+## Foundation, Inc.
+##
+
+mainmenu "greenfield configuration"
+
+menu "General setup"
+
+choice
+	prompt "Enterprise or Upstream"
+	default DISTRO_ENTERPRISE
+	help
+	  This option allows you to select the technology distributions.  Red Hat Enterprise bits, or upstream community supported bits.
+
+config DISTRO_ENTERPRISE
+	bool "Red Hat Enterprise"
+	help
+	  Use Red Hat Enterprise Linux and related Enterprise software releases.
+
+	  For details see http://redhat.com.
+
+config DISTRO_UPSTREAM
+	bool "Fedora Community"
+	help
+	  Use Fedora Linux and related upstream community software releases.
+
+	  For details see http://fedoraproject.org.
+endchoice
+
+config LIBRARY
+	string "Library Directory"
+	default "~/Library"
+	help
+	  Directory holding relevant distribution media (ISOs, zip files, etc).
+
+config MOUNTPOINT
+        string "Mount Point"
+	default "/mnt"
+	help
+	  A mount point directory on this host on which to 
+          mount a RHEL DVD ISO.
+
+config LIBVIRT_IMAGEDIR
+       string "Libvirt Image Directory"
+       default "/var/lib/libvirt/images"
+       help
+          Directory holding libvirt managed guest images.
+
+config DOMAIN
+	string "Domain"
+	default "example.com"
+	help
+	  Enter the full domain of our new greenfield environment.
+	  E.g. example.com
+
+config RHN_USERNAME
+	string "RHN User Name"
+	depends on DISTRO_ENTERPRISE
+	help
+	  Username to connect to Red Hat Network.
+
+config RHN_PASSWORD
+	string "RHN Password"
+	depends on DISTRO_ENTERPRISE
+	help
+	  Password to connect to Red Hat Network.
+
+config SUBSCRIPTION_POOL_RHEL
+	string "RHN Subscription Pool for RHEL"
+	depends on DISTRO_ENTERPRISE
+	help
+	  The subscription pool ID to subscribe all generic RHEL systems to.
+
+config SUBSCRIPTION_POOL_SATELLITE
+	string "RHN Subscription Pool for Satellite"
+	depends on DISTRO_ENTERPRISE
+	help
+	  The subscription pool ID to subscribe all Satellite systems to.
+
+config SUBSCRIPTION_POOL_OPENSHIFT
+	string "RHN Subscription Pool for OpenShift Enterprise"
+	depends on DISTRO_ENTERPRISE
+	help
+	  The subscription pool ID to subscribe all OpenShift systems to.
+
+config MANIFEST
+	string "Satellite manifest file name"
+	depends on DISTRO_ENTERPRISE
+	help
+	  The file name for the satellite manifest file (relative to Library).
+
+config DNS_FORWARDER
+        string "DNS Forwarder IP"
+	help
+	  The IP address of a DNS forwarder.
+
+config TIMEZONE
+        string "Timezone"
+	default "America/Toronto"
+	help
+	  The system's timezone string.
+
+config ROOT_PASSWORD
+	string "Root Password"
+	help
+	  Password for the root account on all systems.
+
+config ADMIN_PASSWORD
+	string "Application Admin Password"
+	help
+	  Password for the admin account in all applications.
+
+config YUM_UPDATE
+	bool "Perform a post install yum update"
+	default n
+	help
+	  Enable this option if you want to run 'yum update'
+	  once a server has installed from the cloud image or ISO.
+
+	  Otherwise, say N to use the provided packages.
+
+endmenu
+
