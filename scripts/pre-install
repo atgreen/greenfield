@@ -1,0 +1,60 @@
+CONFIG_LIBRARY_PATH=`(cd $CONFIG_LIBRARY_PATH; pwd)`
+GF_RHELDVD=$CONFIG_LIBRARY_DIRECTORY/rhel-server-7.1-x86_64-dvd.iso
+GF_UNDERCLOUD_IMAGES="$CONFIG_LIBRARY/deploy-ramdisk-ironic-7.0.0-32.tar $CONFIG_LIBRARY/discovery-ramdisk-7.0.0-32.tar $CONFIG_LIBRARY/overcloud-full-7.0.0-32.tar"
+IMAGEDIR=/mnt/red/images
+
+# === Utility Functions and Internal Variables =========================
+
+# Generate random MAC addresses that start with 52:00:
+
+function generate_MAC_address() {
+  SOURCE=`dd if=/dev/urandom count=1 2>/dev/null | openssl dgst -md5`
+  eval "$1='52:00:$(echo ${SOURCE} | sed 's/^............\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4/')'"
+}
+
+# Split domain like example.com into example and com.
+DNAM=`echo $CONFIG_DOMAIN | awk -F. '{ print $1 }'`
+DTLD=`echo $CONFIG_DOMAIN | awk -F. '{ print $2 }'`
+
+# === Host system work =================================================
+
+# This script should only be run by root...
+if [ "$(id -u)" != "0" ]; then
+  echo "ERROR: You must run this as root" 1>&2
+  exit 1
+fi
+
+# ---- verify that networks are up -------------------------------------
+
+# FIXME
+
+# ---- verify that VMs's don't already exist ---------------------------
+
+# FIXME
+
+# ---- verify that media is available from local httpd -----------------
+
+function verify_library {
+  curl http://localhost/Library/ -s -f | grep --quiet $@
+  if [ $? -ne 0 ]; then 
+    echo "ERROR: Cannot access $CONFIG_LIBRARY_URL/$@ with curl.";
+    exit 1;
+  fi
+}
+
+GF_HTTP_MEDIA="$CONFIG_MANIFEST deploy-ramdisk-ironic-7.0.0-32.tar discovery-ramdisk-7.0.0-32.tar overcloud-full-7.0.0-32.tar"
+
+for m in $GF_HTTP_MEDIA; do 
+  verify_library $m;
+done
+
+verify_library $CONFIG_MANIFEST
+
+# ---- mount RHEL DVD on local mountpoint ------------------------------
+
+# Mount the RHEL DVD under /mnt, or similar.
+mount -o loop -t iso9660 $GF_RHELDVD $CONFIG_MOUNTPOINT > /dev/null 2>&1
+
+# FIXME: test that the mount actually worked.
+
+echo ""

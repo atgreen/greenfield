@@ -1,0 +1,102 @@
+# === IdM ==============================================================
+
+HOSTNAME=idm.$CONFIG_DOMAIN
+
+DNS_OPTIONS=
+if test ${CONFIG_DNS_FORWARDER+set} = "set"; then
+  DNS_OPTIONS="--setup-dns --no-forwarders"
+else
+  DNS_OPTIONS="--setup-dns --forwarder=$CONFIG_DNS_FORWARDER"
+fi
+
+# Generate a couple of MAC addresses for eth0 and eth1.
+generate_MAC_address ETH0_MAC
+
+cat > dev.ks <<EOF
+install
+text
+reboot
+lang en_US.UTF-8
+keyboard us
+network --bootproto static --ip=10.0.0.99 \
+ --gateway=10.0.0.1 \
+ --netmask=255.255.255.0 --nameserver=10.0.0.99 \
+ --hostname=idm.$CONFIG_DOMAIN \
+ --nodefroute \
+ --noipv6 \
+ --device=$ETH0_MAC
+rootpw $CONFIG_ROOT_PASSWORD
+# IPA needs a number of ports open.  See the documentation for details.
+#firewall --enabled --ssh --port=80:tcp,443:tcp,389:tcp,636:tcp,88:tcp,88:udp,464:tcp,464:udp,53:tcp,53:udp,7389:tcp
+firewall --disabled
+#selinux --enforcing
+selinux --permissive
+timezone --utc $CONFIG_TIMEZONE
+bootloader --location=mbr --append="rd_NO_PLYMOUTH"
+zerombr
+clearpart --all --initlabel
+autopart --type=btrfs
+%packages
+@core
+ipa-server
+bind
+bind-dyndb-ldap
+emacs
+%end
+
+%post --log=/root/post_install_1.log
+# Force this host info the hosts file.
+echo "10.0.0.99  idm.$CONFIG_DOMAIN" >> /etc/hosts
+
+# Fix networking...
+echo "nameserver 10.0.0.99" > /etc/resolv.conf
+hostname idm.$CONFIG_DOMAIN
+echo "PEERDNS=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+
+cat > /etc/yum.repos.d/greenfield.repo <<END
+[rhel-7-server-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+END
+
+yum -y update
+
+cat > /etc/systemd/system/install-idm.service <<END
+[Unit]
+Description=One-shot service to install IdM
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ipa-server-install -r ${CONFIG_DOMAIN^^} --hostname=idm.$CONFIG_DOMAIN -p $CONFIG_ADMIN_PASSWORD -a $CONFIG_ADMIN_PASSWORD $DNS_OPTIONS -n $CONFIG_DOMAIN --ssh-trust-dns -U 
+TimeoutStartSec=0
+ExecStartPost=/usr/bin/systemctl disable install-idm.service
+
+[Install]
+WantedBy=default.target
+END
+
+systemctl enable ntpd.service
+systemctl enable install-idm.service
+
+%end
+EOF
+
+virt-install \
+    --disk $GF_RHELDVD,device=cdrom \
+    --name idm.$CONFIG_DOMAIN --ram 4096 \
+    --os-variant=rhel7 \
+    --rng=/dev/random \
+    --disk $IMAGEDIR/$HOSTNAME.img,format=qcow2,size=16 \
+    --network network:10_0,model=virtio,mac=$ETH0_MAC \
+    -l $CONFIG_MOUNTPOINT -x "ks=file:/dev.ks" \
+    --initrd-inject=dev.ks --force \
+    --noautoconsole --wait=-1
+
+echo "Waiting for IdM to install..."
+
+until $(curl --output /dev/null --silent --head -k --fail https://10.0.0.99); do printf '.'; sleep 5; done
+
+

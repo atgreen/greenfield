@@ -1,0 +1,5 @@
+# === Host system work =================================================
+
+# Unmount the RHEL DVD under /mnt, or similar.
+sudo umount $CONFIG_MOUNTPOINT
+

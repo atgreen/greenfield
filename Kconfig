@@ -19,34 +19,17 @@
 
 mainmenu "greenfield configuration"
 
-menu "General setup"
-
-choice
-	prompt "Enterprise or Upstream"
-	default DISTRO_ENTERPRISE
-	help
-	  This option allows you to select the technology distributions.  Red Hat Enterprise bits, or upstream community supported bits.
-
-config DISTRO_ENTERPRISE
-	bool "Red Hat Enterprise"
-	help
-	  Use Red Hat Enterprise Linux and related Enterprise software releases.
-
-	  For details see http://redhat.com.
-
-config DISTRO_UPSTREAM
-	bool "Fedora Community"
-	help
-	  Use Fedora Linux and related upstream community software releases.
-
-	  For details see http://fedoraproject.org.
-endchoice
-
-config LIBRARY
-	string "Library Directory"
-	default "~/Library"
+config LIBRARY_DIRECTORY
+	string "Library Directory Path"
+	default "/mnt/red/Library"
 	help
 	  Directory holding relevant distribution media (ISOs, zip files, etc).
+
+config LIBRARY_URL
+	string "Library URL"
+	default "http://10.0.0.1/Library"
+	help
+	  URL accessable by guests to access the Library.
 
 config MOUNTPOINT
         string "Mount Point"
@@ -70,37 +53,31 @@ config DOMAIN
 
 config RHN_USERNAME
 	string "RHN User Name"
-	depends on DISTRO_ENTERPRISE
 	help
 	  Username to connect to Red Hat Network.
 
 config RHN_PASSWORD
 	string "RHN Password"
-	depends on DISTRO_ENTERPRISE
 	help
 	  Password to connect to Red Hat Network.
 
 config SUBSCRIPTION_POOL_RHEL
 	string "RHN Subscription Pool for RHEL"
-	depends on DISTRO_ENTERPRISE
 	help
 	  The subscription pool ID to subscribe all generic RHEL systems to.
 
 config SUBSCRIPTION_POOL_SATELLITE
 	string "RHN Subscription Pool for Satellite"
-	depends on DISTRO_ENTERPRISE
 	help
 	  The subscription pool ID to subscribe all Satellite systems to.
 
 config SUBSCRIPTION_POOL_OPENSHIFT
 	string "RHN Subscription Pool for OpenShift Enterprise"
-	depends on DISTRO_ENTERPRISE
 	help
 	  The subscription pool ID to subscribe all OpenShift systems to.
 
 config MANIFEST
 	string "Satellite manifest file name"
-	depends on DISTRO_ENTERPRISE
 	help
 	  The file name for the satellite manifest file (relative to Library).
 
@@ -134,5 +111,4 @@ config YUM_UPDATE
 
 	  Otherwise, say N to use the provided packages.
 
-endmenu
 

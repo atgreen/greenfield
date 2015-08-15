@@ -1,0 +1,197 @@
+# === Satellite ========================================================
+
+HOSTNAME=satellite.$CONFIG_DOMAIN
+
+# Generate a couple of MAC addresses for eth0 and eth1.
+generate_MAC_address ETH0_MAC
+
+cat > dev.ks <<EOF
+install
+text
+reboot
+lang en_US.UTF-8
+keyboard us
+network --bootproto static --ip=10.0.0.98 \
+ --gateway=10.0.0.1 \
+ --netmask=255.255.255.0 --nameserver=10.0.0.99 \
+ --hostname=$HOSTNAME \
+ --nodefroute \
+ --noipv6 \
+ --device=$ETH0_MAC
+rootpw $CONFIG_ROOT_PASSWORD
+firewall --disabled
+selinux --permissive
+timezone --utc $CONFIG_TIMEZONE
+bootloader --location=mbr --append="rd_NO_PLYMOUTH"
+zerombr
+clearpart --all --initlabel
+autopart --type=btrfs
+%packages
+@core
+ipa-client
+emacs
+%end
+
+%post --log=/root/post_install_1.log
+# Force this host info the hosts file.
+echo "10.0.0.98  satellite.$CONFIG_DOMAIN satellite" >> /etc/hosts
+
+# Fix networking...
+echo "nameserver 10.0.0.99" > /etc/resolv.conf
+hostname satellite.$CONFIG_DOMAIN
+echo "PEERDNS=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+
+cat > /etc/yum.repos.d/greenfield.repo <<END
+[rhel-7-server-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[rhel-7-server-satellite-6.1-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-satellite-6.1-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[rhel-7-server-extras-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-extras-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[rhel-server-rhscl-7-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-server-rhscl-7-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+END
+
+yum update -y
+yum install -y katello foreman-proxy ipa-admintools
+
+cat > /root/install.sh <<END
+#!/bin/sh
+set -x
+mkdir /mnt/rhel
+mount /dev/sr0 /mnt/rhel
+
+/usr/sbin/ipa-client-install -U -p admin -w $CONFIG_ADMIN_PASSWORD
+
+wget $CONFIG_LIBRARY_URL/$CONFIG_MANIFEST
+
+katello-installer -v \
+  --foreman-admin-username admin \
+  --foreman-admin-password $CONFIG_ADMIN_PASSWORD \
+  --capsule-dhcp true \
+  --capsule-dhcp-interface ksdev0 \
+  --capsule-dhcp-range "10.0.0.100 10.0.0.255" \
+  --capsule-dhcp-gateway 10.0.0.1 \
+  --capsule-dhcp-nameservers 10.0.0.99 \
+  --capsule-tftp true \
+  --capsule-tftp-servername $(hostname) \
+  --capsule-puppet true \
+  --capsule-puppetca true
+
+hammer organization create --name=Greenfield --label=Greenfield
+hammer organization add-user --user=admin --name=Greenfield
+hammer location create --name=Laptop
+hammer location add-user --user=admin --name=Laptop 
+hammer location add-organization --name=Laptop --organization=Greenfield
+hammer organization delete --name=Default_Organization
+hammer location delete --name=Default_Location
+hammer organization add-smart-proxy --name=Greenfield --smart-proxy-id=1
+hammer location add-smart-proxy --name=Laptop --smart-proxy-id=1
+hammer domain create --name='$CONFIG_DOMAIN'
+hammer subnet create --domain-ids=1 --gateway=10.0.0.1 --mask='255.255.255.0' --name='10.0.0.0/24' --tftp-id=1 --network='10.0.0.0' --dns-primary='10.0.0.99'
+hammer organization add-subnet --subnet-id=1 --name='Greenfield'
+hammer organization add-domain --domain-id=1 --name='Greenfield'
+hammer location add-subnet --subnet-id=1 --name='Laptop'
+hammer location add-domain --domain-id=1 --name='Laptop'
+
+# Load local reposync content and sync it.
+hammer product create --organization=Greenfield --name "Red Hat Enterprise Linux Server reposync"
+hammer repository create --product "Red Hat Enterprise Linux Server reposync" --organization=Greenfield --name "Red Hat Enterprise Linux Server 7 RPMS x86_64 7Server" --content-type yum --url $CONFIG_LIBRARY_URL/repos/rhel-7-server-rpms
+for i in \\\$(hammer --csv repository list --organization=Greenfield  | awk -F, {'print \\\$1'} | grep -vi '^ID'); do hammer repository synchronize --id \\\${i} --organization=Greenfield --async; done
+
+# Create lifecycle environments
+hammer lifecycle-environment create --name='Dev' --prior='Library' --organization=Greenfield
+hammer lifecycle-environment create --name='QA' --prior='Dev' --organization=Greenfield
+hammer lifecycle-environment create --name='Prod' --prior='QA' --organization=Greenfield
+hammer content-view create --name='rhel-7-server-x86_64-cv' --organization=Greenfield
+for i in \\\$(hammer --csv repository list --organization=Greenfield | awk -F, {'print \\\$1'} | grep -vi '^ID'); do hammer content-view add-repository --name='rhel-7-server-x86_64-cv' --organization=Greenfield --repository-id=\\\${i}; done
+hammer content-view publish --name="rhel-7-server-x86_64-cv" --organization=Greenfield --async
+
+# Add more repos for upstream RH content, but don't sync it yet.
+hammer subscription upload --file $CONFIG_MANIFEST --organization=Greenfield
+hammer repository-set enable --organization Greenfield --product 'Red Hat Enterprise Linux Server' --basearch='x86_64' --releasever='7Server' --name 'Red Hat Enterprise Linux 7 Server (RPMs)'
+hammer repository-set enable --organization Greenfield --product 'Red Hat Enterprise Linux Server' --basearch='x86_64' --releasever='7Server' --name 'RHN Tools for Red Hat Enterprise Linux 7 Server (RPMs)'
+hammer repository-set enable --organization Greenfield --product 'Red Hat Enterprise Linux Server' --basearch='x86_64' --releasever='7Server' --name 'Red Hat Enterprise Linux 7 Server (Kickstart)'
+
+
+# Configure Satellite for IdM Realm Support
+# https://access.redhat.com/documentation/en-US/Red_Hat_Satellite/6.0/html/User_Guide/Configuring_Identity_Management_in_Red_Hat_Satellite.html
+
+echo $CONFIG_ADMIN_PASSWORD | foreman-prepare-realm admin realm-capsule
+mv /root/freeipa.keytab /etc/foreman-proxy
+chown foreman-proxy:foreman-proxy /etc/foreman-proxy/freeipa.keytab
+katello-installer --capsule-realm true \
+  --capsule-realm-keytab /etc/foreman-proxy/freeipa.keytab \
+  --capsule-realm-principal 'realm-capsule@${CONFIG_DOMAIN^^}' \
+  --capsule-realm-provider freeipa
+cp /etc/ipa/ca.crt /etc/pki/ca-trust/source/anchors/ipa.crt
+update-ca-trust enable
+update-ca-trust
+service foreman-proxy-restart
+# FIXME: use hammer to create the realm
+END
+
+chmod +x /root/install.sh
+
+mkdir /root/.hammer
+cat > /root/.hammer/cli_config.yml <<END
+:foreman:
+    :host: 'https://localhost'
+    :username: 'admin'
+    :password: '$CONFIG_ADMIN_PASSWORD'
+END
+
+cat > /etc/yum.repos.d/local.repo <<END
+[local]
+name=Local
+baseurl=file:///mnt/rhel
+enabled=1
+gpgcheck=0
+END
+
+cat > /etc/systemd/system/install-satellite.service <<END
+[Unit]
+Description=One-shot service to install Satellite
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/su - root -c /root/install.sh
+TimeoutStartSec=0
+ExecStartPost=/usr/bin/systemctl disable install-satellite.service
+
+[Install]
+WantedBy=default.target
+END
+
+systemctl enable install-satellite.service
+
+%end
+EOF
+
+virt-install \
+    --disk $GF_RHELDVD,device=cdrom \
+    --name satellite.$CONFIG_DOMAIN --ram 4096 \
+    --os-variant=rhel7 \
+    --rng=/dev/random \
+    --disk $IMAGEDIR/$HOSTNAME.img,format=qcow2,size=400 \
+    --network network:10_0,model=virtio,mac=$ETH0_MAC \
+    -l $CONFIG_MOUNTPOINT -x "ks=file:/dev.ks" \
+    --initrd-inject=dev.ks --force \
+    --noautoconsole --wait=-1
+
+echo "Waiting for Satellite to install..."
+
+until $(curl --output /dev/null --silent --head -k --fail https://10.0.0.98); do printf '.'; sleep 5; done
