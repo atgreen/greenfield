@@ -1,0 +1,148 @@
+# === RHEL-OSP ===================================================
+
+HOSTNAME=osp.$CONFIG_DOMAIN
+
+# Generate a couple of MAC addresses for eth0 and eth1.
+generate_MAC_address ETH0_MAC
+
+cat > dev.ks <<EOF
+install
+text
+reboot
+lang en_US.UTF-8
+keyboard us
+network --bootproto static --ip=10.0.0.70 \
+ --gateway=10.0.0.1 \
+ --netmask=255.255.255.0 --nameserver=10.0.0.99 \
+ --hostname=$HOSTNAME \
+ --nodefroute \
+ --noipv6 \
+ --device=$ETH0_MAC
+rootpw $CONFIG_ROOT_PASSWORD
+firewall --disabled
+selinux --permissive
+timezone --utc $CONFIG_TIMEZONE
+bootloader --location=mbr --append="rd_NO_PLYMOUTH"
+zerombr
+clearpart --all --initlabel
+autopart
+%packages
+@core
+ipa-client
+emacs
+%end
+
+%post --log=/root/post_install_1.log
+# Force this host info the hosts file.
+echo "10.0.0.70  osp.$CONFIG_DOMAIN osp" >> /etc/hosts
+
+# Fix networking...
+echo "nameserver 10.0.0.99" > /etc/resolv.conf
+hostname osp.$CONFIG_DOMAIN
+systemctl disable NetworkManager
+
+cat > /etc/yum.repos.d/greenfield.repo <<END
+[rhel-7-server-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[rhel-7-server-openstack-7_0-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-openstack-7.0-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+END
+
+yum update -y
+
+cat > /root/install.sh <<END
+#!/bin/sh
+set -x
+/usr/sbin/ipa-client-install -U -p admin -w $CONFIG_ADMIN_PASSWORD
+yum -y install openstack-packstack
+packstack --allinone --os-heat-install=y --keystone-admin-passwd=$CONFIG_ADMIN_PASSWORD --keystone-demo-passwd=$CONFIG_ADMIN_PASSWORD --provision-demo=n
+cat > /etc/sysconfig/network-scripts/ifcfg-br-ex <<FEOF
+DEVICE=br-ex
+DEVICETYPE=ovs
+TYPE=OVSBridge
+BOOTPROTO=static
+IPADDR=10.0.0.70
+NETMASK=255.255.255.0
+GATEWAY=10.0.0.1
+DNS1=10.0.0.99
+ONBOOT=yes
+FEOF
+HWADDR=\\\`grep HWADDR /etc/sysconfig/network-scripts/ifcfg-ksdev0\\\`
+cat > /etc/sysconfig/network-scripts/ifcfg-ksdev0 <<FEOF
+DEVICE=ksdev0
+\\\$HWADDR
+TYPE=OVSPort
+DEVICETYPE=ovs
+OVS_BRIDGE=br-ex
+ONBOOT=yes
+FEOF
+
+openstack-config --set /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini ovs bridge_mappings extnet:br-ex
+openstack-config --set /etc/neutron/plugin.ini ml2 type_drivers vxlan,flat,vlan
+
+systemctl stop neutron-openvswitch-agent 
+systemctl stop neutron-server 
+systemctl stop network
+systemctl start network
+systemctl start neutron-server 
+systemctl start neutron-openvswitch-agent 
+. /root/keystonerc_admin
+sleep 60
+
+neutron net-create external_network --provider:network_type flat --provider:physical_network extnet --router:external --shared > /root/q1.txt 2>&1
+neutron subnet-create --name public_subnet --enable_dhcp=False --allocation-pool=start=10.0.0.10,end=10.0.0.39 --gateway=10.0.0.1 external_network 10.0.0.0/24 >> /root/q1.txt 2>&1
+neutron router-create router1 >> /root/q1.txt 2>&1
+neutron router-gateway-set router1 external_network >> /root/q1.txt 2>&1
+neutron net-create private_network >> /root/q1.txt 2>&1
+neutron subnet-create --name private_subnet private_network 10.1.0.0/24 >> /root/q1.txt 2>&1
+neutron router-interface-add router1 private_subnet >> /root/q1.txt 2>&1
+
+keystone tenant-create --name internal --description "internal tenant" --enabled true >> /root/q1.txt 2>&1
+keystone user-create --name internal --tenant internal --pass "foo" --email admin@$CONFIG_DOMAIN --enabled true >> /root/q1.txt 2>&1
+
+glance image-create --name "RHEL 7" --is-public true --disk-format qcow2 --container-format bare --location http://10.0.0.1/Library/rhel-guest-image-7.1-20150224.0.x86_64.qcow2
+
+END
+
+chmod +x /root/install.sh
+
+cat > /etc/systemd/system/install-osp.service <<END
+[Unit]
+Description=One-shot service to install Osp
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/su - root -c /root/install.sh
+TimeoutStartSec=0
+ExecStartPost=/usr/bin/systemctl disable install-osp.service
+
+[Install]
+WantedBy=default.target
+END
+
+systemctl enable install-osp.service
+
+%end
+EOF
+
+virt-install \
+    --disk $GF_RHELDVD,device=cdrom \
+    --name osp.$CONFIG_DOMAIN --ram 4096 \
+    --os-variant=rhel7 \
+    --rng=/dev/random \
+    --disk $IMAGEDIR/$HOSTNAME.img,format=qcow2,size=400 \
+    --network network:10_0,model=virtio,mac=$ETH0_MAC \
+    -l $CONFIG_MOUNTPOINT -x "ks=file:/dev.ks" \
+    --initrd-inject=dev.ks --force \
+    --noautoconsole --wait=-1
+
+echo "Waiting for osp to install..."
+
+# until $(curl --output /dev/null --silent -k --fail http://10.0.0.70:4001); do printf '.'; sleep 5; done

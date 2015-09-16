@@ -63,6 +63,19 @@ END
 
 yum -y update
 
+cat > /root/install.sh <<END
+#!/bin/sh
+set -x
+
+mkdir .ssh
+(cd .ssh
+ wget $CONFIG_LIBRARY_URL/greenfield-key.pub)
+
+/usr/sbin/ipa-server-install -r ${CONFIG_DOMAIN^^} --hostname=idm.$CONFIG_DOMAIN -p $CONFIG_ADMIN_PASSWORD -a $CONFIG_ADMIN_PASSWORD $DNS_OPTIONS -n $CONFIG_DOMAIN --ssh-trust-dns -U 
+END
+
+chmod +x /root/install.sh
+
 cat > /etc/systemd/system/install-idm.service <<END
 [Unit]
 Description=One-shot service to install IdM
@@ -70,7 +83,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/sbin/ipa-server-install -r ${CONFIG_DOMAIN^^} --hostname=idm.$CONFIG_DOMAIN -p $CONFIG_ADMIN_PASSWORD -a $CONFIG_ADMIN_PASSWORD $DNS_OPTIONS -n $CONFIG_DOMAIN --ssh-trust-dns -U 
+ExecStart=/usr/bin/su - root -c /root/install.sh
 TimeoutStartSec=0
 ExecStartPost=/usr/bin/systemctl disable install-idm.service
 

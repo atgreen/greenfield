@@ -135,7 +135,8 @@ chown foreman-proxy:foreman-proxy /etc/foreman-proxy/freeipa.keytab
 katello-installer --capsule-realm true \
   --capsule-realm-keytab /etc/foreman-proxy/freeipa.keytab \
   --capsule-realm-principal 'realm-capsule@${CONFIG_DOMAIN^^}' \
-  --capsule-realm-provider freeipa
+  --capsule-realm-provider freeipa \
+  --foreman-ipa-authentication true
 cp /etc/ipa/ca.crt /etc/pki/ca-trust/source/anchors/ipa.crt
 update-ca-trust enable
 update-ca-trust

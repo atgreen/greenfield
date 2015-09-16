@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# This script should only be run by root...
+if [ "$(id -u)" != "0" ]; then
+  echo "ERROR: You must run this as root" 1>&2
+  exit 1
+fi
+
 SCRIPT_DIR=`dirname $0`
 
 if test -f $SCRIPT_DIR/../.config; then
@@ -11,9 +17,25 @@ fi
 
 . $SCRIPT_DIR/pre-install || (echo "ERROR: Failed Sanity Checks" 1>&2 && exit 1)
 
+# Install the IdM server
 . $SCRIPT_DIR/install-idm
 
+# Update resolv.conf to point at IdM
+grep --quiet 10.0.0.99 /etc/resolv.conf
+if [ $? -ne 0 ]; then 
+  cp /etc/resolv.conf /tmp/resolv.conf.tmp
+  echo "nameserver 10.0.0.99" > /etc/resolv.conf
+  cat /etc/resolv.conf.tmp >> /etc/resolv.conf
+fi
+
+# Install the RHEL-OSP
+. $SCRIPT_DIR/install-osp
+
+# Install the Satellite server
 . $SCRIPT_DIR/install-satellite
+
+# Install the Kubernetes master
+. $SCRIPT_DIR/install-k8s
 
 echo "All done!"
 
