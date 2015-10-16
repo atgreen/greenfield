@@ -144,6 +144,7 @@ time.
 * Create new RHEL7 instances of size m1.small
 * Use the following cloud-init script to enable root logins.  Set this
   during instance creation time:
+
     #cloud-config
     # vim:syntax=yaml
     debug: True
