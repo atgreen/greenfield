@@ -143,8 +143,9 @@ time.
 * You'll find a RHEL7 cloud image in the image repository.
 * Create new RHEL7 instances of size m1.small
 * Use the following cloud-init script to enable root logins.  Set this
-  during instance creation time:
+  during instance creation time
 
+<pre>
     #cloud-config
     # vim:syntax=yaml
     debug: True
@@ -158,6 +159,7 @@ time.
     runcmd:
     - sed -i'.orig' -e's/without-password/yes/' /etc/ssh/sshd_config
     - service sshd restart
+</pre>
 
 Contributing to Greenfield
 ==========================
