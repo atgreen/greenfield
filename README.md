@@ -77,6 +77,26 @@ Here's what needs to go into the Library:
 1. rhel-server-7.1-x86_64-dvd.iso
 2. a new 'repos' directory
 
+We'll fill the repos directory by syncing content from RHN to your
+local system.  First, however, you'll need to enable the appropriate
+channels.  This may require attaching to new and different
+subscriptions with subscription-manager.
+
+    #!/bin/sh
+
+    for R in \
+      rhel-7-server-rpms \
+      rhel-7-server-satellite-6.1-rpms \
+      rhel-7-server-extras-rpms \
+      rhel-7-server-optional-rpms \
+      rhel-server-rhscl-7-rpms \
+      rhel-7-server-openstack-7.0-rpms; do \
+      subscription-manager repos --enable=$R; \
+      createrepo $LIBRARY/$R;
+    done;
+
+
+
 Now let's fill the repo mirrors using reposync...
 
     #!/bin/sh
@@ -89,6 +109,7 @@ Now let's fill the repo mirrors using reposync...
       rhel-7-server-extras-rpms \
       rhel-7-server-optional-rpms \
       rhel-server-rhscl-7-rpms \
+      rhel-7-server-openstack-7.0-rpms; do \
       reposync -lnm --repoid=$R --download_path=$LIBRARY; \
       createrepo $LIBRARY/$R; 
     done;
