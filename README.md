@@ -74,8 +74,9 @@ require messing with firewalls and SELinux.
 
 Here's what needs to go into the Library:
 
-1. rhel-server-7.1-x86_64-dvd.iso
-2. a new 'repos' directory
+1. rhel-server-7.1-x86_64-dvd.iso from access.redhat.com
+2. rhel-guest-image-7.1-20150224.0.x86_64.qcow2 from access.redhat.com
+3. a new 'repos' directory
 
 We'll fill the repos directory by syncing content from RHN to your
 local system.  First, however, you'll need to enable the appropriate
@@ -128,6 +129,34 @@ Build Instructions
 ==================
 * run make
 * run script/install
+
+
+Usage Notes
+===========
+
+Red Hat Enterprise Linux OpenStack Platform
+-------------------------------------------
+
+* Log in as 'admin' and use the admin password you created at configure
+time.
+* A private network of 10.1.0.0/24 is available for all OSP instances.
+* You'll find a RHEL7 cloud image in the image repository.
+* Create new RHEL7 instances of size m1.small
+* Use the following cloud-init script to enable root logins.  Set this
+  during instance creation time:
+    #cloud-config
+    # vim:syntax=yaml
+    debug: True
+    ssh_pwauth: True
+    disable_root: false
+    chpasswd:
+      list: |
+        root:password
+        cloud-user:password
+      expire: false
+    runcmd:
+    - sed -i'.orig' -e's/without-password/yes/' /etc/ssh/sshd_config
+    - service sshd restart
 
 Contributing to Greenfield
 ==========================
