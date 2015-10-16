@@ -28,6 +28,13 @@ provided where appropriate.
 Prerequisites
 =============
 
+Local Software
+--------------
+
+You'll need some local software on your system.  The following should do the trick:
+
+    $ yum install gcc make virt-manager virt-install createrepo yum-utils httpd
+
 Private Virtual Network
 -----------------------
 
@@ -52,24 +59,23 @@ all of the greenfield VMs on this private 10.0.0.0/24 network.
 
 
 Library
--------
+------
 
 The 'Library' is where we place all of the media required to install
 and configure our environment.  The media needs to be published via
 http to VMs on our private network.  
 
-1. Install httpd and turn it on (systemctl start httpd && systemctl enable httpd).
-
-2. Install the createrepo and yum-utils packages.
-
+1. Turn on httpd (systemctl start httpd && systemctl enable httpd).
 2. Create a Library directory under /var/www/html (or symlink).  This is where we're
    going to place all of the content.  
+
+Make sure you can access the Library from another system.  This may
+require messing with firewalls and SELinux.
 
 Here's what needs to go into the Library:
 
 1. rhel-server-7.1-x86_64-dvd.iso
-2. jboss-brms-6.1.0.GA-installer.jar
-3. a new 'repos' directory
+2. a new 'repos' directory
 
 Now let's fill the repo mirrors using reposync...
 
@@ -87,7 +93,14 @@ Now let's fill the repo mirrors using reposync...
       createrepo $LIBRARY/$R; 
     done;
 
-You're ready now.
+
+Local Mount Directory
+---------------------
+
+You'll need a local mount directory in which we'll mount the RHEL
+ISO. I use /mnt/x, but anything is fine.
+
+Now you are ready to configure and build!
 
 
 Build Instructions
