@@ -1,0 +1,175 @@
+# === OpenShift Enterprise =======================================
+
+HOSTNAME=ose.$CONFIG_DOMAIN
+
+# Generate a couple of MAC addresses for eth0 and eth1.
+generate_MAC_address ETH0_MAC
+
+cat > dev.ks <<EOF
+install
+text
+reboot
+lang en_US.UTF-8
+keyboard us
+network --bootproto static --ip=10.0.0.40 \
+ --gateway=10.0.0.1 \
+ --netmask=255.255.255.0 --nameserver=10.0.0.99 \
+ --hostname=$HOSTNAME \
+ --nodefroute \
+ --noipv6 \
+ --device=$ETH0_MAC
+rootpw $CONFIG_ROOT_PASSWORD
+firewall --disabled
+selinux --permissive
+timezone --utc $CONFIG_TIMEZONE
+bootloader --location=mbr --append="rd_NO_PLYMOUTH"
+# Only use vda.  The second disk (vdb) will be used by openshift.
+ignoredisk --only-use=vda
+zerombr
+clearpart --all --initlabel
+autopart
+%packages
+@core
+ipa-client
+emacs
+%end
+
+%post --log=/root/post_install_1.log
+# Force this host info the hosts file.
+echo "10.0.0.40  ose.$CONFIG_DOMAIN ose" >> /etc/hosts
+
+# Fix networking...
+echo "nameserver 10.0.0.99" > /etc/resolv.conf
+hostname ose.$CONFIG_DOMAIN
+echo "PEERDNS=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+
+cat > /etc/yum.repos.d/greenfield.repo <<END
+[rhel-7-server-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[rhel-7-server-extras-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-extras-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[rhel-7-server-ose-3.1-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-ose-3.1-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+END
+
+yum update -y
+yum install -y wget git net-tools bind-utils iptables-services bridge-utils
+yum install -y gcc python-virtualenv
+yum install -y docker
+yum install -y atomic-openshift-utils
+
+cat > /root/install.sh <<END
+#!/bin/sh
+set -x
+cd /root
+/usr/sbin/ipa-client-install -U -p admin -w $CONFIG_ADMIN_PASSWORD
+
+# Trust any registry on the servicesSubnet, which defaults to 
+# 172.39.0.0/16.  
+sed -i.bak "s/--selinux-enabled'/--selinux-enabled --insecure-registry 172.39.0.0\\\/16'/" /etc/sysconfig/docker 
+
+# Set up OpenShift installer config
+mkdir -p /root/.config/openshift
+cat <<FINI > /root/.config/openshift/installer.cfg.yml
+ansible_config: /usr/share/atomic-openshift-utils/ansible.cfg
+ansible_log_path: /tmp/ansible.log
+ansible_ssh_user: root
+hosts:
+- connect_to: 10.0.0.40
+  hostname: ose.$CONFIG_DOMAIN
+  ip: 10.0.0.40
+  master: true
+  node: true
+  public_hostname: ose.$CONFIG_DOMAIN
+  public_ip: 10.0.0.40
+variant: openshift-enterprise
+variant_version: '3.1'
+version: v1
+FINI
+
+# Set up docker storage
+cat <<FINI > /etc/sysconfig/docker-storage-setup
+DEVS=/dev/vdb
+VG=docker-vg
+FINI
+docker-storage-setup
+
+# Re-initialize docker as per the OSE installation guide
+systemctl stop docker
+rm -rf /var/lib/docker/*
+systemctl restart docker
+systemctl enable docker
+
+sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/g' /etc/ssh/sshd_config
+systemctl restart sshd
+cat /dev/zero | ssh-keygen -N ""
+cp /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+echo "        StrictHostKeyChecking no" >> /etc/ssh/ssh_config
+
+atomic-openshift-installer -u install
+
+sed -i 's/subdomain:  ""/subdomain:  ose.$CONFIG_DOMAIN/g' /etc/origin/master/master-config.yaml
+sed -i 's/deny_all/allow_all/g' /etc/origin/master/master-config.yaml
+sed -i 's/DenyAllPasswordIdentityProvider/AllowAllPasswordIdentityProvider/g' /etc/origin/master/master-config.yaml
+
+oadm registry --config=/etc/origin/master/admin.kubeconfig \
+    --credentials=/etc/origin/master/openshift-registry.kubeconfig \
+    --images='registry.access.redhat.com/openshift3/ose-${component}:${version}'
+
+oadm router router --replicas=1 \
+    --credentials='/etc/origin/master/openshift-router.kubeconfig' \
+    --service-account=router
+
+oadm manage-node ose.demo.org --schedulable
+
+sleep 3
+
+systemctl restart atomic-openshift-master
+END
+
+chmod +x /root/install.sh
+
+cat > /etc/systemd/system/install-ose.service <<END
+[Unit]
+Description=One-shot service to install OSE
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/su - root -c /root/install.sh
+TimeoutStartSec=0
+ExecStartPost=/usr/bin/systemctl disable install-ose.service
+
+[Install]
+WantedBy=default.target
+END
+
+systemctl enable install-ose.service
+
+%end
+EOF
+
+virt-install \
+    --disk $GF_RHELDVD,device=cdrom \
+    --name ose.$CONFIG_DOMAIN --ram 4096 \
+    --os-variant=rhel7 \
+    --rng=/dev/random \
+    --disk $IMAGEDIR/$HOSTNAME.img,format=qcow2,size=50 \
+    --disk $IMAGEDIR/$HOSTNAME.2.img,format=qcow2,size=400 \
+    --network network:10_0,model=virtio,mac=$ETH0_MAC \
+    -l $CONFIG_MOUNTPOINT -x "ks=file:/dev.ks" \
+    --initrd-inject=dev.ks --force \
+    --noautoconsole --wait=-1
+
+echo "Waiting for ose to install..."
+
+# until $(curl --output /dev/null --silent -k --fail http://10.0.0.40:8443); do printf '.'; sleep 5; done

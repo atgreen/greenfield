@@ -1,0 +1,105 @@
+# === BRMS ========================================================
+
+HOSTNAME=brms.$CONFIG_DOMAIN
+
+# Generate a couple of MAC addresses for eth0 and eth1.
+generate_MAC_address ETH0_MAC
+
+cat > dev.ks <<EOF
+install
+text
+reboot
+lang en_US.UTF-8
+keyboard us
+network --bootproto static --ip=10.0.0.75 \
+ --gateway=10.0.0.1 \
+ --netmask=255.255.255.0 --nameserver=10.0.0.99 \
+ --hostname=$HOSTNAME \
+ --nodefroute \
+ --noipv6 \
+ --device=$ETH0_MAC
+rootpw $CONFIG_ROOT_PASSWORD
+firewall --disabled
+selinux --permissive
+timezone --utc $CONFIG_TIMEZONE
+bootloader --location=mbr --append="rd_NO_PLYMOUTH"
+zerombr
+clearpart --all --initlabel
+autopart --type=btrfs
+%packages
+@core
+ipa-client
+emacs
+java
+%end
+
+%post --log=/root/post_install_1.log
+# Force this host info the hosts file.
+echo "10.0.0.75  brms.$CONFIG_DOMAIN brms" >> /etc/hosts
+
+# Fix networking...
+echo "nameserver 10.0.0.99" > /etc/resolv.conf
+hostname brms.$CONFIG_DOMAIN
+
+cat > /etc/yum.repos.d/greenfield.repo <<END
+[rhel-7-server-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/rhel-7-server-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+[jb-eap-6-for-rhel-7-server-rpms]
+baseurl=$CONFIG_LIBRARY_URL/repos/jb-eap-6-for-rhel-7-server-rpms
+enable=1
+gpgcheck=0
+nsslverify=0
+END
+
+yum update -y
+# yum groupinstall -y jboss-eap6
+
+cat > /root/install.sh <<END
+#!/bin/sh
+set -x
+mkdir /mnt/rhel
+
+/usr/sbin/ipa-client-install -U -p admin -w $CONFIG_ADMIN_PASSWORD
+
+wget $CONFIG_LIBRARY_URL/jboss-brms-6.1.0.GA-installer.jar
+END
+
+chmod +x /root/install.sh
+
+cat > /etc/systemd/system/install-brms.service <<END
+[Unit]
+Description=One-shot service to install BRMS
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/su - root -c /root/install.sh
+TimeoutStartSec=0
+ExecStartPost=/usr/bin/systemctl disable install-brms.service
+
+[Install]
+WantedBy=default.target
+END
+
+systemctl enable install-brms.service
+
+%end
+EOF
+
+virt-install \
+    --disk $GF_RHELDVD,device=cdrom \
+    --name brms.$CONFIG_DOMAIN --ram 2048 \
+    --os-variant=rhel7 \
+    --rng=/dev/random \
+    --disk $IMAGEDIR/$HOSTNAME.img,format=qcow2,size=40 \
+    --network network:10_0,model=virtio,mac=$ETH0_MAC \
+    -l $CONFIG_MOUNTPOINT -x "ks=file:/dev.ks" \
+    --initrd-inject=dev.ks --force \
+    --noautoconsole --wait=-1
+
+echo "Waiting for BRMS to install..."
+
+# until $(curl --output /dev/null --silent --head -k --fail https://10.0.0.75); do printf '.'; sleep 5; done

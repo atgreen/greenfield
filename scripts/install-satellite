@@ -100,7 +100,7 @@ hammer location delete --name=Default_Location
 hammer organization add-smart-proxy --name=Greenfield --smart-proxy-id=1
 hammer location add-smart-proxy --name=Laptop --smart-proxy-id=1
 hammer domain create --name='$CONFIG_DOMAIN'
-hammer subnet create --domain-ids=1 --gateway=10.0.0.1 --mask='255.255.255.0' --name='10.0.0.0/24' --tftp-id=1 --network='10.0.0.0' --dns-primary='10.0.0.99'
+hammer subnet create --domain-ids=1 --gateway=10.0.0.1 --mask='255.255.255.0' --name='10.0.0.0/24' --tftp-id=1 --network='10.0.0.0' --dns-primary='10.0.0.99' --ipam "DHCP" --dhcp-id 1 --dns-id=1 --tftp-id=1
 hammer organization add-subnet --subnet-id=1 --name='Greenfield'
 hammer organization add-domain --domain-id=1 --name='Greenfield'
 hammer location add-subnet --subnet-id=1 --name='Laptop'
@@ -124,6 +124,12 @@ hammer subscription upload --file $CONFIG_MANIFEST --organization=Greenfield
 hammer repository-set enable --organization Greenfield --product 'Red Hat Enterprise Linux Server' --basearch='x86_64' --releasever='7Server' --name 'Red Hat Enterprise Linux 7 Server (RPMs)'
 hammer repository-set enable --organization Greenfield --product 'Red Hat Enterprise Linux Server' --basearch='x86_64' --releasever='7Server' --name 'RHN Tools for Red Hat Enterprise Linux 7 Server (RPMs)'
 hammer repository-set enable --organization Greenfield --product 'Red Hat Enterprise Linux Server' --basearch='x86_64' --releasever='7Server' --name 'Red Hat Enterprise Linux 7 Server (Kickstart)'
+
+# Configure the OS
+PTABLE = `hammer partition-table list | grep "Kickstart default" | cut -b 1-3`
+hammer os add-ptable --id 1 --ptable-id $PTABLE
+TEMPLATE = `hammer template list | grep "Satellite Kickstart Default" | grep provision | cut -b 1-3`
+hammer os set-default-template --id 1 --config-template-id=$TEMPLATE
 
 
 # Configure Satellite for IdM Realm Support

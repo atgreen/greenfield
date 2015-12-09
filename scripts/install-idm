@@ -39,6 +39,7 @@ autopart --type=btrfs
 %packages
 @core
 ipa-server
+ipa-server-dns
 bind
 bind-dyndb-ldap
 emacs

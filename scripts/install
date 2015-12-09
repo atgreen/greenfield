@@ -21,21 +21,24 @@ fi
 . $SCRIPT_DIR/install-idm
 
 # Update resolv.conf to point at IdM
-grep --quiet 10.0.0.99 /etc/resolv.conf
-if [ $? -ne 0 ]; then 
-  cp /etc/resolv.conf /tmp/resolv.conf.tmp
-  echo "nameserver 10.0.0.99" > /etc/resolv.conf
-  cat /etc/resolv.conf.tmp >> /etc/resolv.conf
-fi
+#grep --quiet 10.0.0.99 /etc/resolv.conf
+#if [ $? -ne 0 ]; then 
+#  cp /etc/resolv.conf /tmp/resolv.conf.tmp
+#  echo "nameserver 10.0.0.99" > /etc/resolv.conf
+#  cat /etc/resolv.conf.tmp >> /etc/resolv.conf
+#fi
 
-# Install the RHEL-OSP
-. $SCRIPT_DIR/install-osp
-
-# Install the Satellite server
+# Install a Satellite server
 . $SCRIPT_DIR/install-satellite
 
-# Install the Kubernetes master
-. $SCRIPT_DIR/install-k8s
+# Install OSE
+. $SCRIPT_DIR/install-ose
+
+# Install RHEL-OSP
+. $SCRIPT_DIR/install-osp
+
+# Install BRMS
+. $SCRIPT_DIR/install-brms
 
 echo "All done!"
 

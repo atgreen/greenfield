@@ -1,7 +1,7 @@
 CONFIG_LIBRARY_PATH=`(cd $CONFIG_LIBRARY_PATH; pwd)`
-GF_RHELDVD=$CONFIG_LIBRARY_DIRECTORY/rhel-server-7.1-x86_64-dvd.iso
+GF_RHELDVD=$CONFIG_LIBRARY_DIRECTORY/rhel-server-7.2-x86_64-dvd.iso
 GF_UNDERCLOUD_IMAGES="$CONFIG_LIBRARY/deploy-ramdisk-ironic-7.0.0-32.tar $CONFIG_LIBRARY/discovery-ramdisk-7.0.0-32.tar $CONFIG_LIBRARY/overcloud-full-7.0.0-32.tar"
-IMAGEDIR=/mnt/red/images
+IMAGEDIR=$CONFIG_LIBVIRT_IMAGEDIR
 
 # === Utility Functions and Internal Variables =========================
 
