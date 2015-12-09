@@ -123,7 +123,7 @@ sed -i 's/DenyAllPasswordIdentityProvider/AllowAllPasswordIdentityProvider/g' /e
 
 oadm registry --config=/etc/origin/master/admin.kubeconfig \
     --credentials=/etc/origin/master/openshift-registry.kubeconfig \
-    --images='registry.access.redhat.com/openshift3/ose-${component}:${version}'
+    --images='registry.access.redhat.com/openshift3/ose-\\\${component}:\\\${version}'
 
 oadm router router --replicas=1 \
     --credentials='/etc/origin/master/openshift-router.kubeconfig' \
