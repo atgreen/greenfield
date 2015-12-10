@@ -1,4 +1,10 @@
-# === OpenShift Enterprise =======================================
+# --------------------------------------------------------------------------
+# install-ose - Copyright 2015  Anthony Green
+# Distrubuted under the terms of the GPL v3 or later.
+#
+# This script is part of the greenfield project.
+# See http://github.com/atgreen/greenfield for details.
+# --------------------------------------------------------------------------
 
 HOSTNAME=ose.$CONFIG_DOMAIN
 
@@ -117,23 +123,51 @@ echo "        StrictHostKeyChecking no" >> /etc/ssh/ssh_config
 
 atomic-openshift-installer -u install
 
+# FIXME: place the console on 443 instead of 8443.
+
+# Let anybody use OpenShift and restart the service
+# TODO: hook OpenShift up to idm for user authentication.
 sed -i 's/subdomain:  ""/subdomain:  ose.$CONFIG_DOMAIN/g' /etc/origin/master/master-config.yaml
 sed -i 's/deny_all/allow_all/g' /etc/origin/master/master-config.yaml
 sed -i 's/DenyAllPasswordIdentityProvider/AllowAllPasswordIdentityProvider/g' /etc/origin/master/master-config.yaml
 
+# TODO: register with subscription-manager, because we aren't caching 
+# docker registeries locally yet.
+
+# Set up our internal registry.
 oadm registry --config=/etc/origin/master/admin.kubeconfig \
     --credentials=/etc/origin/master/openshift-registry.kubeconfig \
     --images='registry.access.redhat.com/openshift3/ose-\\\${component}:\\\${version}'
 
+# ...and our local router.
 oadm router router --replicas=1 \
     --credentials='/etc/origin/master/openshift-router.kubeconfig' \
     --service-account=router
 
+# Since we're only standing up one node, make sure that k8s can
+# scheduler containers here.
 oadm manage-node ose.demo.org --schedulable
 
-sleep 3
+# TODO: Set wildcard DNS entry in IdM.  Do this manually for
+# now. "*.ose" should point at 10.0.0.40, were our router lives.
 
+# Wait for the router to deploy and run...
+OUTPUT=
+until \\\$([[ ! -z \\\$OUTPUT]]); do
+ sleep 10;
+ OUTPUT=\\\`kubectl get pods | grep Running | grep docker-registry- | grep -v deploy\\\`
+done
+
+# Wait for the registry to deploy and run...
+OUTPUT=
+until \\\$([[ ! -z \\\$OUTPUT]]); do
+ sleep 10;
+ OUTPUT=\\\`kubectl get pods | grep Running | grep docker-router- | grep -v deploy\\\`
+done
+
+# Restart the master so we can log in now...
 systemctl restart atomic-openshift-master
+
 END
 
 chmod +x /root/install.sh
@@ -172,4 +206,4 @@ virt-install \
 
 echo "Waiting for ose to install..."
 
-# until $(curl --output /dev/null --silent -k --fail http://10.0.0.40:8443); do printf '.'; sleep 5; done
+until $(curl --output /dev/null --silent -k --fail http://10.0.0.40:8443); do printf '.'; sleep 5; done
