@@ -8,7 +8,7 @@ performing hands-off virtual deployments of a complete suite of IT
 infrastructure tools suitable for the purpose of demonstration on a
 laptop or similar.  Key characteristics of the project include:
 
-* *Offline Friendly*.  All installable media are downloaded in advance
+* *Offline Friendly*.  Most installable media are downloaded in advance
 to support offline deployments, and to conserve bandwidth over
 multiple deployments.
 
@@ -74,7 +74,7 @@ require messing with firewalls and SELinux.
 
 Here's what needs to go into the Library:
 
-1. rhel-server-7.1-x86_64-dvd.iso from access.redhat.com
+1. rhel-server-7.2-x86_64-dvd.iso from access.redhat.com
 2. rhel-guest-image-7.1-20150224.0.x86_64.qcow2 from access.redhat.com
 3. a new 'repos' directory
 
@@ -88,12 +88,13 @@ subscriptions with subscription-manager.
     for R in \
       rhel-7-server-rpms \
       rhel-7-server-satellite-6.1-rpms \
+      rhel-7-server-ose-3.1-rpms \
       rhel-7-server-extras-rpms \
       rhel-7-server-optional-rpms \
+      rhel-7-server-common-rpms \
       rhel-server-rhscl-7-rpms \
-      rhel-7-server-openstack-7.0-rpms; do \
+      rhel-7-server-openstack-7.0-rpms; do
       subscription-manager repos --enable=$R; \
-      createrepo $LIBRARY/$R;
     done;
 
 
@@ -107,8 +108,10 @@ Now let's fill the repo mirrors using reposync...
     for R in \
       rhel-7-server-rpms \
       rhel-7-server-satellite-6.1-rpms \
+      rhel-7-server-ose-3.1-rpms \
       rhel-7-server-extras-rpms \
       rhel-7-server-optional-rpms \
+      rhel-7-server-common-rpms \
       rhel-server-rhscl-7-rpms \
       rhel-7-server-openstack-7.0-rpms; do \
       reposync -lnm --repoid=$R --download_path=$LIBRARY; \
@@ -134,9 +137,22 @@ Build Instructions
 Usage Notes
 ===========
 
+Roed Hat OpenShift Enterprise
+----------------------------
+
+Connect to 10.0.0.40:8443 for the console.  It is configured to allow
+anyone to log in, but only after it has finished installing critical
+infrastructure (the router and registry containers).  You will not be
+able to login until this is complete.
+
+Also note that the installation process involves downloading docker
+images from docker.io and redhat.com.  Greenfield does not currently
+support fully offline deployments at this time.
+
+
 Red Hat Enterprise Linux OpenStack Platform
 -------------------------------------------
-
+ 
 * Log in as 'admin' and use the admin password you created at configure
 time.
 * A private network of 10.1.0.0/24 is available for all OSP instances.
