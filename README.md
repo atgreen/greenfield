@@ -137,7 +137,7 @@ Build Instructions
 Usage Notes
 ===========
 
-Roed Hat OpenShift Enterprise
+Red Hat OpenShift Enterprise
 ----------------------------
 
 Connect to 10.0.0.40:8443 for the console.  It is configured to allow
