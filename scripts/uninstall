@@ -1,5 +1,13 @@
 #!/bin/sh
 
+# --------------------------------------------------------------------------
+# uninstall - Copyright 2015  Anthony Green
+# Distrubuted under the terms of the GPL v2 or later.
+#
+# This script is part of the greenfield project.
+# See http://github.com/atgreen/greenfield for details.
+# --------------------------------------------------------------------------
+
 # This script should only be run by root...
 if [ "$(id -u)" != "0" ]; then
   echo "ERROR: You must run this as root" 1>&2

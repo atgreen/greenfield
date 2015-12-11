@@ -1,4 +1,10 @@
-# === Host system work =================================================
+# --------------------------------------------------------------------------
+# post-install - Copyright 2015  Anthony Green
+# Distrubuted under the terms of the GPL v2 or later.
+#
+# This script is part of the greenfield project.
+# See http://github.com/atgreen/greenfield for details.
+# --------------------------------------------------------------------------
 
 # Unmount the RHEL DVD under /mnt, or similar.
 sudo umount $CONFIG_MOUNTPOINT

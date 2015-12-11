@@ -1,4 +1,10 @@
-# === Satellite ========================================================
+# --------------------------------------------------------------------------
+# install-satellite - Copyright 2015  Anthony Green
+# Distrubuted under the terms of the GPL v2 or later.
+#
+# This script is part of the greenfield project.
+# See http://github.com/atgreen/greenfield for details.
+# --------------------------------------------------------------------------
 
 HOSTNAME=satellite.$CONFIG_DOMAIN
 

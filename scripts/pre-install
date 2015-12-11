@@ -1,6 +1,13 @@
+# --------------------------------------------------------------------------
+# pre-install - Copyright 2015  Anthony Green
+# Distrubuted under the terms of the GPL v2 or later.
+#
+# This script is part of the greenfield project.
+# See http://github.com/atgreen/greenfield for details.
+# --------------------------------------------------------------------------
+
 CONFIG_LIBRARY_PATH=`(cd $CONFIG_LIBRARY_PATH; pwd)`
 GF_RHELDVD=$CONFIG_LIBRARY_DIRECTORY/rhel-server-7.2-x86_64-dvd.iso
-GF_UNDERCLOUD_IMAGES="$CONFIG_LIBRARY/deploy-ramdisk-ironic-7.0.0-32.tar $CONFIG_LIBRARY/discovery-ramdisk-7.0.0-32.tar $CONFIG_LIBRARY/overcloud-full-7.0.0-32.tar"
 IMAGEDIR=$CONFIG_LIBVIRT_IMAGEDIR
 
 # === Utility Functions and Internal Variables =========================
@@ -42,7 +49,7 @@ function verify_library {
   fi
 }
 
-GF_HTTP_MEDIA="$CONFIG_MANIFEST deploy-ramdisk-ironic-7.0.0-32.tar discovery-ramdisk-7.0.0-32.tar overcloud-full-7.0.0-32.tar"
+GF_HTTP_MEDIA="$CONFIG_MANIFEST"
 
 for m in $GF_HTTP_MEDIA; do 
   verify_library $m;
