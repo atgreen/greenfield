@@ -59,7 +59,7 @@ all of the greenfield VMs on this private 10.0.0.0/24 network.
 
 
 Library
-------
+-------
 
 The 'Library' is where we place all of the media required to install
 and configure our environment.  The media needs to be published via
@@ -91,9 +91,9 @@ subscriptions with subscription-manager.
       rhel-7-server-ose-3.1-rpms \
       rhel-7-server-extras-rpms \
       rhel-7-server-optional-rpms \
-      rhel-7-server-common-rpms \
       rhel-server-rhscl-7-rpms \
-      rhel-7-server-openstack-7.0-rpms; do
+      rhel-7-server-openstack-7.0-rpms \
+      rhel-7-server-aep-beta-rpms; do \
       subscription-manager repos --enable=$R; \
     done;
 
@@ -111,8 +111,8 @@ Now let's fill the repo mirrors using reposync...
       rhel-7-server-ose-3.1-rpms \
       rhel-7-server-extras-rpms \
       rhel-7-server-optional-rpms \
-      rhel-7-server-common-rpms \
       rhel-server-rhscl-7-rpms \
+      rhel-7-server-aep-beta-rpms; do \
       rhel-7-server-openstack-7.0-rpms; do \
       reposync -lnm --repoid=$R --download_path=$LIBRARY; \
       createrepo $LIBRARY/$R; 
