@@ -112,7 +112,7 @@ Now let's fill the repo mirrors using reposync...
       rhel-7-server-extras-rpms \
       rhel-7-server-optional-rpms \
       rhel-server-rhscl-7-rpms \
-      rhel-7-server-aep-beta-rpms; do \
+      rhel-7-server-aep-beta-rpms \
       rhel-7-server-openstack-7.0-rpms; do \
       reposync -lnm --repoid=$R --download_path=$LIBRARY; \
       createrepo $LIBRARY/$R; 
